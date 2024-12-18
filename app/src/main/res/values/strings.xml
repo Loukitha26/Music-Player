@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Music App</string>
+    <string name="album_art_description">Album art</string>
+    <string name="play_pause">Play/Pause Button</string>
+    <string name="next">Next Button</string>
+    <string name="previous">Previous Button</string>
+</resources>
