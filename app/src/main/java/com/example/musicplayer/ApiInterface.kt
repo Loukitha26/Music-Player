@@ -1,4 +1,4 @@
-package com.example.musicapp
+package com.example.musicplayer
 
 import retrofit2.Call
 import retrofit2.http.GET

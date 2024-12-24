@@ -1,4 +1,6 @@
-package com.example.musicapp
+package com.example.musicplayer
+
+import com.example.musicplayer.Data
 
 data class MyData(
     val `data`: List<Data>,
