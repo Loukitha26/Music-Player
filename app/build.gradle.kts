@@ -84,4 +84,8 @@ dependencies {
 
     implementation (libs.material3)
 
+
+    implementation (libs.exoplayer.v2181)
+
+
 }

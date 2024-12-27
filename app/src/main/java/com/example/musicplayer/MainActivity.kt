@@ -1,47 +1,31 @@
 package com.example.musicplayer
 
+import android.content.Context
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import retrofit2.Call
@@ -50,12 +34,60 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-
 class MainActivity : ComponentActivity() {
+    private lateinit var mediaPlayer: MediaPlayer
+    private lateinit var audioManager: AudioManager
+    private var audioFocusGranted = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+
+        mediaPlayer = MediaPlayer()
+
         setContent {
             MusicApp()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::mediaPlayer.isInitialized) {
+            mediaPlayer.release()
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setOnAudioFocusChangeListener { focusChange -> handleAudioFocusChange(focusChange) }
+                .build()
+
+            audioManager.requestAudioFocus(audioFocusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                { focusChange -> handleAudioFocusChange(focusChange) },
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+
+    private fun handleAudioFocusChange(focusChange: Int) {
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> mediaPlayer.pause()
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                if (!mediaPlayer.isPlaying) mediaPlayer.start()
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                mediaPlayer.pause()
+                audioFocusGranted = false
+            }
         }
     }
 
@@ -72,7 +104,6 @@ class MainActivity : ComponentActivity() {
             .build()
             .create(ApiInterface::class.java)
 
-
         LaunchedEffect(Unit) {
             isLoading = true
             val defaultQuery = "top hits"
@@ -88,7 +119,6 @@ class MainActivity : ComponentActivity() {
                 }
             })
         }
-
 
         LaunchedEffect(searchQuery) {
             if (searchQuery.isNotBlank()) {
@@ -107,26 +137,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-
         val currentSong = if (currentIndex >= 0 && currentIndex < musicData.size) {
             musicData[currentIndex]
         } else null
-
 
         if (currentSong != null) {
             MusicPlayerScreen(
                 currentSong = currentSong,
                 musicData = musicData,
                 currentIndex = currentIndex,
-                onSongChange = { newIndex -> currentIndex = newIndex },
-                onClose = { currentIndex = -1 }
+                onSongChange = { newIndex ->
+                    currentIndex = newIndex
+                    playSong(musicData[newIndex].preview)
+                },
+                onClose = {
+                    currentIndex = -1
+                    stopPlayback()
+                }
             )
         } else {
-
-            Column {
-
+            Column(modifier = Modifier.fillMaxSize()) {
                 SearchBar(searchQuery, onQueryChange = { searchQuery = it })
-
 
                 if (isLoading) {
                     Box(
@@ -138,12 +169,73 @@ class MainActivity : ComponentActivity() {
                 } else {
                     MusicList(
                         dataList = musicData,
-                        onItemClick = { index -> currentIndex = index }
+                        onItemClick = { index ->
+                            currentIndex = index
+                            playSong(musicData[index].preview)
+                        }
                     )
                 }
             }
         }
     }
+
+    private fun playSong(previewUrl: String) {
+        try {
+
+            resetPlayer()
+
+
+            if (requestAudioFocus()) {
+                audioFocusGranted = true
+
+
+                mediaPlayer.setDataSource(previewUrl)
+                mediaPlayer.prepareAsync()
+
+                mediaPlayer.setOnPreparedListener {
+                    mediaPlayer.start()
+                }
+            } else {
+                Log.e("MusicApp", "Failed to gain audio focus")
+            }
+        } catch (e: Exception) {
+            Log.e("MusicApp", "Error in playSong: ${e.message}")
+        }
+    }
+
+
+    private lateinit var audioFocusRequest: AudioFocusRequest
+
+    private fun stopPlayback() {
+        try {
+
+            if (::mediaPlayer.isInitialized && mediaPlayer.isPlaying) {
+                mediaPlayer.stop()
+            }
+            mediaPlayer.reset() // Reset the player state
+
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && ::audioFocusRequest.isInitialized) {
+                audioManager.abandonAudioFocusRequest(audioFocusRequest)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(null)
+            }
+
+            audioFocusGranted = false
+        } catch (e: Exception) {
+            Log.e("MusicApp", "Error in stopPlayback: ${e.message}")
+        }
+    }
+
+
+    private fun resetPlayer() {
+        if (::mediaPlayer.isInitialized) {
+            mediaPlayer.stop()
+            mediaPlayer.reset()
+        }
+    }
+
 
     @Composable
     fun SearchBar(searchQuery: String, onQueryChange: (String) -> Unit) {
@@ -162,13 +254,7 @@ class MainActivity : ComponentActivity() {
                     contentDescription = "Search",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            },
-//            colors = TextFieldDefaults.outlinedTextFieldColors(
-//                focusedBorderColor = MaterialTheme.colorScheme.primary,
-//                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-//                focusedLabelColor = MaterialTheme.colorScheme.primary,
-//                cursorColor = MaterialTheme.colorScheme.primary // Add cursor color
-//            )
+            }
         )
     }
 
@@ -183,10 +269,10 @@ class MainActivity : ComponentActivity() {
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(dataList.size) { index ->
+                items(dataList) { item ->
                     MusicCard(
-                        data = dataList[index],
-                        onClick = { onItemClick(index) }
+                        data = item,
+                        onClick = { onItemClick(dataList.indexOf(item)) }
                     )
                 }
             }
@@ -243,42 +329,232 @@ class MainActivity : ComponentActivity() {
         onClose: () -> Unit
     ) {
         var isPlaying by remember { mutableStateOf(false) }
+        var playbackPosition by remember { mutableFloatStateOf(0f) }
+        var totalDuration by remember { mutableFloatStateOf(0f) }
+        var formattedTime by remember { mutableStateOf("00:00") }
+
+        LaunchedEffect(currentIndex) {
+            playbackPosition = 0f
+            totalDuration = currentSong.duration.toFloat()
+            mediaPlayer.reset()
+            mediaPlayer.setDataSource(currentSong.preview)
+            mediaPlayer.prepare()
+            mediaPlayer.start()
+            isPlaying = true
+        }
+
+        LaunchedEffect(isPlaying) {
+            if (isPlaying) {
+                while (playbackPosition < totalDuration && mediaPlayer.isPlaying) {
+                    playbackPosition = mediaPlayer.currentPosition / 1000f
+                    formattedTime = formatTime(playbackPosition.toInt())
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+        }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            // Song Info
-            Text(text = currentSong.title, style = MaterialTheme.typography.headlineMedium)
-            Text(text = currentSong.artist.name, style = MaterialTheme.typography.bodyMedium)
+            IconButton(onClick = { onClose() }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back to List",
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
 
-            // Song Controls
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = rememberAsyncImagePainter(currentSong.album.cover),
+                    contentDescription = "Album Cover",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = currentSong.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = currentSong.artist.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { if (currentIndex > 0) onSongChange(currentIndex - 1) }) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Previous")
-                }
-
-                IconButton(onClick = { isPlaying = !isPlaying }) {
+                IconButton(
+                    onClick = {
+                        if (currentIndex > 0) {
+                            onSongChange(currentIndex - 1)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        )
+                        .padding(12.dp)
+                ) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play"
+                        imageVector = Icons.Filled.SkipPrevious,
+                        contentDescription = "Previous",
+                        modifier = Modifier.size(30.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                IconButton(onClick = { if (currentIndex < musicData.size - 1) onSongChange(currentIndex + 1) }) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Next")
+                Spacer(modifier = Modifier.width(32.dp))
+
+                IconButton(
+                    onClick = {
+
+                        if (mediaPlayer.isPlaying) {
+                            mediaPlayer.pause()
+                            isPlaying = false
+                        } else {
+                            mediaPlayer.start()
+                            isPlaying = true
+                        }
+                    },
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        )
+                        .padding(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(32.dp))
+
+                IconButton(
+                    onClick = {
+                        if (currentIndex < musicData.size - 1) {
+                            onSongChange(currentIndex + 1)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        )
+                        .padding(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "Next",
+                        modifier = Modifier.size(30.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Close Button
-            IconButton(onClick = { onClose() }) {
-                Icon(Icons.Default.Close, contentDescription = "Close Player")
-            }
+            PlaybackProgressBar(
+                progress = playbackPosition,
+                totalDuration = totalDuration,
+                formattedTime = formattedTime,
+                onSeek = { newPosition ->
+                    playbackPosition = newPosition
+                    mediaPlayer.seekTo((newPosition * 1000).toInt())
+                }
+            )
+        }
+    }
+
+    private fun formatTime(seconds: Int): String {
+        val minutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        return "%02d:%02d".format(minutes, remainingSeconds)
+    }
+
+
+
+    @Composable
+    fun PlaybackProgressBar(
+        progress: Float,
+        totalDuration: Float,
+        formattedTime: String,
+        onSeek: (Float) -> Unit
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = formattedTime,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+
+            Slider(
+                value = progress,
+                onValueChange = { onSeek(it) },
+                valueRange = 0f..totalDuration,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                text = "%.1f".format(totalDuration),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

@@ -7,6 +7,7 @@ converterGson = "2.9.0"
 exoplayer = "2.19.1"
 exoplayerVersion = "2.19.1"
 googleExoplayer = "2.19.0"
+googleExoplayerVersion = "2.18.1"
 kotlin = "2.0.0"
 coreKtx = "1.15.0"
 junit = "4.13.2"
@@ -38,6 +39,7 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose"
 coil-compose-v230 = { module = "io.coil-kt:coil-compose", version.ref = "coilComposeVersion" }
 converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 exoplayer = { module = "com.google.android.exoplayer2:exoplayer", version.ref = "exoplayer" }
+exoplayer-v2181 = { module = "com.google.android.exoplayer:exoplayer", version.ref = "googleExoplayerVersion" }
 exoplayer-v2190 = { module = "com.google.android.exoplayer:exoplayer", version.ref = "googleExoplayer" }
 google-exoplayer = { module = "com.google.android.exoplayer:exoplayer", version.ref = "exoplayerVersion" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
