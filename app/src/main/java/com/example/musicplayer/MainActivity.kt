@@ -1,6 +1,7 @@
 package com.example.musicplayer
 
 import android.content.Context
+import android.content.Intent
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -11,16 +12,48 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +61,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
+import com.google.firebase.auth.FirebaseAuth
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -42,14 +76,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        FirebaseAuth.getInstance()
 
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+        } else {
 
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            mediaPlayer = MediaPlayer()
 
-        mediaPlayer = MediaPlayer()
-
-        setContent {
-            MusicApp()
+            setContent {
+                MusicApp()
+            }
         }
     }
 
@@ -77,7 +117,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     private fun handleAudioFocusChange(focusChange: Int) {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> mediaPlayer.pause()
@@ -91,6 +130,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun MusicApp() {
         var musicData by remember { mutableStateOf<List<Data>>(emptyList()) }
@@ -146,48 +186,45 @@ class MainActivity : ComponentActivity() {
                 currentSong = currentSong,
                 musicData = musicData,
                 currentIndex = currentIndex,
-                onSongChange = { newIndex ->
-                    currentIndex = newIndex
-                    playSong(musicData[newIndex].preview)
-                },
-                onClose = {
-                    currentIndex = -1
-                    stopPlayback()
-                }
+                onSongChange = { newIndex -> currentIndex = newIndex; playSong(musicData[newIndex].preview) },
+                onClose = { currentIndex = -1; stopPlayback() }
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
+                TopAppBar(
+                    title = { Text("Music Player") },
+                    actions = {
+                        IconButton(onClick = { logOut() }) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
+                        }
+                    }
+                )
+
                 SearchBar(searchQuery, onQueryChange = { searchQuery = it })
 
                 if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 } else {
-                    MusicList(
-                        dataList = musicData,
-                        onItemClick = { index ->
-                            currentIndex = index
-                            playSong(musicData[index].preview)
-                        }
-                    )
+                    MusicList(dataList = musicData, onItemClick = { index -> currentIndex = index; playSong(musicData[index].preview) })
                 }
             }
         }
     }
 
+    private fun logOut() {
+        FirebaseAuth.getInstance().signOut()
+        startActivity(Intent(this, LoginActivity::class.java))
+        finish()
+    }
+
     private fun playSong(previewUrl: String) {
         try {
-
             resetPlayer()
-
 
             if (requestAudioFocus()) {
                 audioFocusGranted = true
-
 
                 mediaPlayer.setDataSource(previewUrl)
                 mediaPlayer.prepareAsync()
@@ -203,17 +240,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     private lateinit var audioFocusRequest: AudioFocusRequest
 
     private fun stopPlayback() {
         try {
-
             if (::mediaPlayer.isInitialized && mediaPlayer.isPlaying) {
                 mediaPlayer.stop()
             }
-            mediaPlayer.reset() // Reset the player state
-
+            mediaPlayer.reset()
 
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && ::audioFocusRequest.isInitialized) {
                 audioManager.abandonAudioFocusRequest(audioFocusRequest)
@@ -228,7 +262,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     private fun resetPlayer() {
         if (::mediaPlayer.isInitialized) {
             mediaPlayer.stop()
@@ -236,24 +269,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     @Composable
     fun SearchBar(searchQuery: String, onQueryChange: (String) -> Unit) {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .height(56.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp),
             shape = RoundedCornerShape(12.dp),
             placeholder = { Text("Search artist or song") },
             leadingIcon = {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "Search",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(imageVector = Icons.Filled.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         )
     }
@@ -261,19 +286,13 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MusicList(dataList: List<Data>, onItemClick: (Int) -> Unit) {
         if (dataList.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No songs found", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(dataList) { item ->
-                    MusicCard(
-                        data = item,
-                        onClick = { onItemClick(dataList.indexOf(item)) }
-                    )
+                    MusicCard(data = item, onClick = { onItemClick(dataList.indexOf(item)) })
                 }
             }
         }
@@ -282,39 +301,20 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MusicCard(data: Data, onClick: () -> Unit) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .clickable { onClick() },
+            modifier = Modifier.fillMaxWidth().padding(8.dp).clickable { onClick() },
             shape = RoundedCornerShape(8.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = rememberAsyncImagePainter(data.album.cover),
-                    contentDescription = null,
-                    modifier = Modifier.size(100.dp),
+                    painter = rememberAsyncImagePainter(model = data.album.cover),
+                    contentDescription = data.title,
+                    modifier = Modifier.size(64.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(8.dp)
-                ) {
-                    Text(
-                        text = data.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = data.artist.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(data.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(data.artist.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

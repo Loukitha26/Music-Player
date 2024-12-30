@@ -6,8 +6,12 @@ coilComposeVersion = "2.3.0"
 converterGson = "2.9.0"
 exoplayer = "2.19.1"
 exoplayerVersion = "2.19.1"
+firebaseAuth = "23.1.0"
+firebaseBom = "33.6.0"
+firebaseDatabase = "21.0.0"
 googleExoplayer = "2.19.0"
 googleExoplayerVersion = "2.18.1"
+googleServices = "4.4.2"
 kotlin = "2.0.0"
 coreKtx = "1.15.0"
 junit = "4.13.2"
@@ -41,7 +45,12 @@ converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref
 exoplayer = { module = "com.google.android.exoplayer2:exoplayer", version.ref = "exoplayer" }
 exoplayer-v2181 = { module = "com.google.android.exoplayer:exoplayer", version.ref = "googleExoplayerVersion" }
 exoplayer-v2190 = { module = "com.google.android.exoplayer:exoplayer", version.ref = "googleExoplayer" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+firebase-auth = { module = "com.google.firebase:firebase-auth", version.ref = "firebaseAuth" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-database = { module = "com.google.firebase:firebase-database", version.ref = "firebaseDatabase" }
 google-exoplayer = { module = "com.google.android.exoplayer:exoplayer", version.ref = "exoplayerVersion" }
+google-services = { module = "com.google.gms:google-services", version.ref = "googleServices" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
