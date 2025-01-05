@@ -69,24 +69,27 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : ComponentActivity() {
-    private lateinit var mediaPlayer: MediaPlayer
+    private lateinit var mediaPlayer: MediaPlayer // Handles audio playback
     private lateinit var audioManager: AudioManager
     private var audioFocusGranted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initializing Firebase Authentication
         FirebaseAuth.getInstance()
 
+        // Check if a user is logged in; if not redirect to LoginActivity
         val user = FirebaseAuth.getInstance().currentUser
         if (user == null) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
         } else {
-
+            // Initialize AudioManager and MediaPlayer for music playback
             audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             mediaPlayer = MediaPlayer()
 
+            // Set the UI content using Jetpack Compose
             setContent {
                 MusicApp()
             }

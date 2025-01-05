@@ -36,16 +36,18 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 
 class ForgotPasswordActivity : ComponentActivity() {
-    private val auth = FirebaseAuth.getInstance()
+    private val auth = FirebaseAuth.getInstance() // Firebase Authentication instance
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Set the Forgot Password screen using Jetpack Compose
         setContent {
             ForgotPasswordScreen(onResetPassword = { email -> resetPassword(email) })
         }
     }
-
+    // Sends a password reset email to the user
     private fun resetPassword(email: String) {
+        // Validate the email format
         if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             Toast.makeText(this, "Please enter a valid email address", Toast.LENGTH_SHORT).show()
             return
